@@ -2,20 +2,25 @@ workflows:
   react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
-    instance_type: mac_mini_m2
+    instance_type: mac_mini_m1  # <-- CHÌA KHÓA: Hạ máy chủ xuống M1
     environment:
       node: 20.19.4
+      xcode: 14.3.1  # <-- Xcode 14 hoàn toàn tương thích với RN 0.72 trên M1
     triggering:
       events:
         - push
     scripts:
-      - name: Cài đặt các gói Dependency trong package.json
+      - name: Bơm Node.js vào hệ thống & Cài đặt Dependency
         script: |
+          echo "--> Ép hệ thống nhận diện Node.js cho script ẩn của Xcode..."
+          sudo ln -s $(command -v node) /usr/local/bin/node || true
           npm install
+
       - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios
-      - name: Vá lỗi Boost & Trộn mã sửa lỗi vào Podfile gốc
+
+      - name: Vá lỗi Boost & Trộn mã tắt chữ ký vào Podfile
         script: |
           echo "--> Sửa tệp cấu hình Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
@@ -34,34 +39,24 @@ workflows:
             echo "end" >> "$BOOST_PODSPEC"
           fi
 
-          echo "--> Dùng Ruby trộn mã sửa lỗi trực tiếp vào bên trong post_install của Expo..."
+          echo "--> Trộn mã cấu hình vào post_install..."
           ruby -e '
             file_path = "ios/Podfile"
             if File.exist?(file_path)
               content = File.read(file_path)
-              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"OTHER_CPLUSPLUSFLAGS\"] = \"$(inherited) -Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n      config.build_settings[\"CLANG_CXX_LANGUAGE_STANDARD\"] = \"c++17\"\n    end\n  end\n"
+              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n    end\n  end\n"
               if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
                 content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
                 File.write(file_path, content)
-                puts "--> Đã hòa trộn mã cấu hình sửa lỗi thành công!"
-              else
-                puts "--> Không tìm thấy khối post_install gốc!"
+                puts "--> Đã hòa trộn thành công!"
               end
-            else
-              puts "--> Không tìm thấy Podfile!"
             end
           '
           cd ios && pod install
-          
-          echo "--> VÁ LỖI DT_TOOLCHAIN_DIR..."
-          find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
-          find Pods -type f -name '*.xcconfig' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
 
       - name: Biên dịch hệ thống (Bản chính thức - Release Mode)
         script: |
           cd ios
-          echo "--> Bơm đường dẫn Node.js cho Hermes Engine..."
-          export NODE_BINARY=$(command -v node)
           echo "--> Tiến hành biên dịch ứng dụng độc lập không cần chứng chỉ..."
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
