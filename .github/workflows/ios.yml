@@ -1,0 +1,39 @@
+name: Build iOS IPA (TrollStore)
+on:
+  push:
+    branches: [ main, master ] # Tự động chạy khi bạn commit code
+
+jobs:
+  build:
+    runs-on: macos-13 # Ép chạy trên máy Mac thật của GitHub
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Xcode Project thô (ARM64)
+        run: npx expo prebuild --platform ios
+
+      - name: Tạo thư mục Payload chuẩn iOS
+        run: |
+          mkdir Payload
+          cp -r ios/build/Build/Products/Debug-iphoneos/*.app Payload/ || cp -r ios/build/Build/Products/Release-iphoneos/*.app Payload/ || mv ios/*.app Payload/ 2>/dev/null || true
+          
+      - name: Đóng gói thành file .ipa vĩnh viễn
+        run: zip -r LgRemoteController.ipa Payload
+
+      - name: Tải file IPA về để cài qua TrollStore
+        uses: actions/upload-artifact@v3
+        with:
+          name: App-TrollStore-ARM64
+          path: LgRemoteController.ipa
