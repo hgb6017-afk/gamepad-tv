@@ -5,8 +5,6 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      xcode: latest
-      cocoapods: default
     triggering:
       events:
         - push
@@ -38,29 +36,30 @@ workflows:
           fi
 
           cd ios && pod install
-      - name: Biên dịch và đóng gói ứng dụng chuyên dụng
+      - name: Biên dịch hệ thống và Đóng gói Xcode Archive
         script: |
           cd ios
-          echo "--> Đang tự động biên dịch dự án bằng bộ công cụ tối ưu của Codemagic..."
+          echo "--> Tiến hành Archive dự án tạo bản phân phối chuẩn..."
           
-          # Sử dụng công cụ nội bộ của Codemagic để tự động cấu hình và xuất file .app ẩn danh, bỏ qua bước ký mã (Sign) để chạy TrollStore
-          xcode-project build-ipa \
-            --workspace LgRemoteController.xcworkspace \
-            --scheme LgRemoteController \
-            --configuration Debug \
-            --sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
-      - name: Gom cấu trúc Payload chuẩn cho TrollStore
+          # Sử dụng lệnh archive để gom toàn bộ app và framework thành 1 gói duy nhất
+          xcodebuild -workspace LgRemoteController.xcworkspace \
+                     -scheme LgRemoteController \
+                     -configuration Debug \
+                     -destination 'generic/platform=iOS' \
+                     -archivePath build/LgRemoteController.xcarchive \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     clean archive
+      - name: Trích xuất file .app và tạo cấu trúc IPA cho TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          echo "--> Gom tệp tin .app vào thư mục Payload..."
+          echo "--> Đang trích xuất file .app từ gói Archive đã dựng..."
           
-          # Quét tìm tệp .app ở mọi thư mục build đầu ra khả dụng để tránh lỗi không tìm thấy đường dẫn
-          find . -name "*.app" -maxdepth 4 -exec cp -R {} Payload/ \;
+          # Sao chép trực tiếp file .app từ trong gói Archive ra thư mục Payload
+          cp -R build/LgRemoteController.xcarchive/Products/Applications/*.app Payload/
           
-          echo "--> Đóng gói thành file cài đặt .ipa cuối cùng..."
+          echo "--> Nén thư mục Payload thành file cài đặt .ipa cuối cùng..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
