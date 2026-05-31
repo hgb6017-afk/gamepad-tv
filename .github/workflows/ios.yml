@@ -2,16 +2,20 @@ name: Kich Hoat Remote Desktop MacOS
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Cho phép bạn bấm nút kích hoạt thủ công bất cứ lúc nào
+  workflow_dispatch: # Cho phép bấm nút chạy thủ công bất cứ lúc nào
 
 jobs:
   build:
-    runs-on: macos-13 # Bản macOS 13 chuẩn chỉnh, chạy rất mượt và ổn định
+    runs-on: macos-13 # Giữ bản macOS 13 chuẩn ổn định
     steps:
-      - name: Tải và cài đặt Ngrok để tạo đường truyền
+      - name: Tải và giải nén Ngrok siêu tốc (Bypass Homebrew)
         run: |
-          brew install --cask ngrok
-          
+          # Tải trực tiếp file chạy của Ngrok dành cho máy Mac từ trang chủ
+          curl -Lk https://bin.equinox.io/c/bNyj1mQcaMx/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
+          unzip ngrok.zip
+          # Chuyển file ngrok vào thư mục hệ thống để gọi lệnh ngắn gọn
+          sudo mv ngrok /usr/local/bin/
+
       - name: Khai báo Token kết nối Ngrok
         run: |
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
@@ -23,7 +27,7 @@ jobs:
           
       - name: Tạo mật khẩu đăng nhập máy Mac
         run: |
-          # Đặt mật khẩu đăng nhập máy Mac là: @Baohg123
+          # Mật khẩu đăng nhập VNC: @Baohg123
           sudo dscl . -passwd /Users/runner @Baohg123
           
       - name: Mở cổng kết nối công khai (Giữ máy chạy trong 6 tiếng)
