@@ -21,7 +21,6 @@ workflows:
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           
           if [ -f "$BOOST_PODSPEC" ]; then
-            # Cập nhật lại chính xác mã SHA256 gốc để khớp hoàn toàn với file tải về
             echo "Pod::Spec.new do |spec|" > "$BOOST_PODSPEC"
             echo "  spec.name = 'boost'" >> "$BOOST_PODSPEC"
             echo "  spec.version = '1.76.0'" >> "$BOOST_PODSPEC"
@@ -34,8 +33,6 @@ workflows:
             echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
             echo "end" >> "$BOOST_PODSPEC"
             echo "--> Đã đồng bộ mã băm và nguồn tải Boost sạch thành công!"
-          else
-            echo "--> Không tìm thấy file podspec của boost."
           fi
 
           cd ios
@@ -43,8 +40,17 @@ workflows:
       - name: Tự động gom cấu hình và tạo file .app cho máy thật
         script: |
           cd ios
-          echo "--> Biên dịch ứng dụng Xcode với scheme 'main' mặc định của Expo..."
-          xcodebuild -workspace main.xcworkspace -scheme "main" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
+          echo "--> Đang tự động quét tìm tệp Workspace của dự án..."
+          
+          # Tự động tìm tệp tin .xcworkspace thực tế trong thư mục ios
+          WORKSPACE_FILE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME_NAME=$(basename "$WORKSPACE_FILE" .xcworkspace)
+          
+          echo "--> Tìm thấy Workspace: $WORKSPACE_FILE"
+          echo "--> Tên Scheme tương ứng: $SCHEME_NAME"
+          echo "--> Tiến hành thực hiện biên dịch ứng dụng..."
+          
+          xcodebuild -workspace "$WORKSPACE_FILE" -scheme "$SCHEME_NAME" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
       - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
         script: |
           cd ios
