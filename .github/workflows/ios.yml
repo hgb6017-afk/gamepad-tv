@@ -1,46 +1,31 @@
-name: Build iOS IPA (TrollStore)
+name: Kich Hoat Remote Desktop MacOS
 on:
   push:
     branches: [ main, master ]
+  workflow_dispatch: # Cho phép bạn bấm nút kích hoạt thủ công bất cứ lúc nào
 
 jobs:
   build:
-    runs-on: macos-13 # Dùng bản macOS 13 vừa đủ và cực kỳ hợp với Expo SDK 49
+    runs-on: macos-13 # Bản macOS 13 chuẩn chỉnh, chạy rất mượt và ổn định
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20.19.4 # Khớp chính xác với phiên bản Node trên VPS của bạn
-
-      - name: Cài đặt Expo CLI toàn cục
-        run: npm install -g eas-cli
-
-      - name: Cài đặt các gói Dependency trong package.json
-        run: npm install
-
-      - name: Khởi tạo thư mục iOS gốc (Prebuild)
-        run: npx expo prebuild --platform ios
-
-      - name: Tự động cài đặt CocoaPods (Bước này cực kỳ quan trọng)
+      - name: Tải và cài đặt Ngrok để tạo đường truyền
         run: |
-          cd ios
-          pod install
-          cd ..
-
-      - name: Gom tất cả vào thư mục Payload chuẩn cho TrollStore
+          brew install --cask ngrok
+          
+      - name: Khai báo Token kết nối Ngrok
         run: |
-          mkdir Payload
-          # Tự động tìm file .app vừa tạo ra để nhét vào thư mục Payload
-          find . -name "*.app" -type d -exec cp -R {} Payload/ \; 2>/dev/null || true
-
-      - name: Nén thành file .ipa vĩnh viễn
-        run: zip -r LgRemoteController.ipa Payload
-
-      - name: Đẩy file IPA lên hệ thống để bạn tải về VPS
-        uses: actions/upload-artifact@v3
-        with:
-          name: App-TrollStore-ARM64
-          path: LgRemoteController.ipa
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          
+      - name: Kích hoạt tính năng Screen Sharing (Remote Desktop) trên máy Mac
+        run: |
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement VNCEverywhere -bool true
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
+          
+      - name: Tạo mật khẩu đăng nhập máy Mac
+        run: |
+          # Đặt mật khẩu đăng nhập máy Mac là: @Baohg123
+          sudo dscl . -passwd /Users/runner @Baohg123
+          
+      - name: Mở cổng kết nối công khai (Giữ máy chạy trong 6 tiếng)
+        run: |
+          ngrok tcp 5900 --region ap
