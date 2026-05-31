@@ -9,38 +9,40 @@ workflows:
       events:
         - push
     scripts:
-      - name: Cài đặt Dependency
+      - name: Nâng cấp Hệ thống & Cài đặt Dependency
         script: |
+          echo "--> ÉP CẬP NHẬT COCOAPODS MỚI NHẤT ĐỂ VÁ LỖI SCRIPT CỦA XCODE 15..."
+          sudo gem install cocoapods
           npm install
 
       - name: Khởi tạo thư mục iOS (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios --clean
-
-      - name: Thiết lập Node.js chuẩn (Cứu Hermes Engine)
-        script: |
           echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env.local
 
       - name: Vá lỗi Boost
         script: |
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           if [ -f "$BOOST_PODSPEC" ]; then
-            echo "Pod::Spec.new do |spec|" > "$BOOST_PODSPEC"
-            echo "  spec.name = 'boost'" >> "$BOOST_PODSPEC"
-            echo "  spec.version = '1.76.0'" >> "$BOOST_PODSPEC"
-            echo "  spec.license = { :type => 'Boost Software License' }" >> "$BOOST_PODSPEC"
-            echo "  spec.homepage = 'http://www.boost.org'" >> "$BOOST_PODSPEC"
-            echo "  spec.summary = 'Boost provides free peer-reviewed portable C++ source libraries.'" >> "$BOOST_PODSPEC"
-            echo "  spec.authors = 'Rene Rivera'" >> "$BOOST_PODSPEC"
-            echo "  spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => 'f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41', :type => :tbz }" >> "$BOOST_PODSPEC"
-            echo "  spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'" >> "$BOOST_PODSPEC"
-            echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
-            echo "end" >> "$BOOST_PODSPEC"
+            cat > "$BOOST_PODSPEC" << 'EOF'
+            Pod::Spec.new do |spec|
+              spec.name = 'boost'
+              spec.version = '1.76.0'
+              spec.license = { :type => 'Boost Software License' }
+              spec.homepage = 'http://www.boost.org'
+              spec.summary = 'Boost provides free peer-reviewed portable C++ source libraries.'
+              spec.authors = 'Rene Rivera'
+              spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => 'f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41', :type => :tbz }
+              spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'
+              spec.header_mappings_dir = '.'
+            end
+          EOF
           fi
 
-      - name: Phục hồi C++ Folly an toàn & Tắt chữ ký mã (TrollStore)
+      - name: Tắt chữ ký mã bằng Ruby (TrollStore)
         script: |
-          echo 'file_path = "ios/Podfile"
+          cat > patch_podfile.rb << 'EOF'
+          file_path = "ios/Podfile"
           exit unless File.exist?(file_path)
           
           content = File.read(file_path)
@@ -51,38 +53,38 @@ workflows:
                 config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"
                 config.build_settings["CODE_SIGNING_IDENTITY"] = ""
                 config.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""
-                config.build_settings["GCC_TREAT_WARNINGS_AS_ERRORS"] = "NO"
                 config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "14.0"
-                
-                # BẢO VỆ ĐƯỜNG DẪN GỐC VÀ HỒI SINH HÀM C++ 17
-                cppflags = config.build_settings["OTHER_CPLUSPLUSFLAGS"] || ["$(inherited)"]
-                cppflags = [cppflags] if cppflags.is_a?(String)
-                cppflags.push("-Wno-everything", "-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1")
-                config.build_settings["OTHER_CPLUSPLUSFLAGS"] = cppflags.uniq
-
-                cflags = config.build_settings["OTHER_CFLAGS"] || ["$(inherited)"]
-                cflags = [cflags] if cflags.is_a?(String)
-                cflags.push("-Wno-everything")
-                config.build_settings["OTHER_CFLAGS"] = cflags.uniq
               end
             end
           }
           if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
             content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|\n#{patch}")
             File.write(file_path, content)
-          end' > patch_podfile.rb
+          end
+          EOF
           ruby patch_podfile.rb
 
-      - name: Cài đặt Pods & Xử lý DT_TOOLCHAIN_DIR
+      - name: Cài đặt Pods & Ép buộc Cấu hình Tuyệt đối
         script: |
           cd ios
           pod install
+          
+          echo "--> VÁ LỖI DT_TOOLCHAIN_DIR..."
           find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
           find Pods -type f -name '*.xcconfig' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+          
+          echo "--> BƠM THẦN CHÚ C++ VÀ ĐẬP TAN HỘP CÁT SANDBOX TỪ ĐÁY FILE XCCONFIG..."
+          find Pods -type f -name '*.xcconfig' -print0 | while IFS= read -r -d '' file; do
+            echo 'OTHER_CPLUSPLUSFLAGS = $(inherited) -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1 -Wno-everything' >> "$file"
+            echo 'OTHER_CFLAGS = $(inherited) -Wno-everything' >> "$file"
+            echo 'WARNING_CFLAGS = $(inherited) -Wno-everything' >> "$file"
+            echo 'ENABLE_USER_SCRIPT_SANDBOXING = NO' >> "$file"
+          done
 
       - name: Biên dịch ứng dụng (Bản chính thức)
         script: |
           cd ios
+          echo "--> Xung phong! Bắt đầu biên dịch..."
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
                      -configuration Release \
