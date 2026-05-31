@@ -6,16 +6,17 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13 # ĐÂY LÀ CHÌA KHÓA: Máy chủ macOS 13 sử dụng Xcode 14 chuẩn chỉ!
+    runs-on: macos-14 # ĐÃ ĐỔI SANG MACOS 14 (Hệ thống mới và cực nhanh)
     
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v3
 
-      - name: Cài đặt Node.js
+      - name: Khởi tạo Cache Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Cài đặt Dependency
         run: npm install
@@ -23,12 +24,52 @@ jobs:
       - name: Khởi tạo thư mục iOS (Expo Prebuild)
         run: npx expo prebuild --platform ios --clean
 
-      - name: Cài đặt CocoaPods
+      - name: Tiêm Thần Chú C++ (Cứu Folly & Yoga)
+        run: |
+          echo "--> Patching Folly cho Xcode 15..."
+          find node_modules -name "Folly.podspec" -exec sed -i '' 's/-DFOLLY_NO_CONFIG/-DFOLLY_NO_CONFIG -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1 -Wno-everything/g' {} +
+          
+          cat > patch_podfile.rb << 'EOF'
+          file_path = "ios/Podfile"
+          exit unless File.exist?(file_path)
+          
+          content = File.read(file_path)
+          patch = %q{
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                config.build_settings['CODE_SIGN_IDENTITY'] = ''
+                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+                config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+                config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+                
+                cpp_flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || '$(inherited)'
+                config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "#{cpp_flags} -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1 -Wno-everything"
+                
+                c_flags = config.build_settings['OTHER_CFLAGS'] || '$(inherited)'
+                config.build_settings['OTHER_CFLAGS'] = "#{c_flags} -Wno-everything"
+              end
+            end
+          }
+          if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
+            content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|\n#{patch}")
+            File.write(file_path, content)
+          end
+          EOF
+          ruby patch_podfile.rb
+
+      - name: Cài đặt CocoaPods & Cắt kịch bản Ký mã
         run: |
           cd ios
           pod install
+          echo "--> Fixing DT_TOOLCHAIN_DIR..."
+          find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+          find Pods -type f -name '*.xcconfig' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+          echo "--> Disabling Code Signing in CocoaPods scripts..."
+          find Pods -type f -name '*.sh' -exec sed -i '' 's/code_sign_if_enabled/echo "Skipped codesign"/g' {} +
 
-      - name: Biên dịch ứng dụng (Tắt chữ ký mã)
+      - name: Biên dịch ứng dụng (Tắt hoàn toàn chữ ký)
         run: |
           cd ios
           xcodebuild -workspace LgRemoteController.xcworkspace \
@@ -39,17 +80,17 @@ jobs:
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGNING_IDENTITY="" \
+                     ENABLE_USER_SCRIPT_SANDBOXING=NO \
                      clean build
 
       - name: Đóng gói thành file .ipa
         run: |
           cd ios
           mkdir -p Payload
-          # Tìm đúng file .app vừa build xong và copy vào Payload
           find build/Build/Products -name "*.app" -type d -exec cp -R {} Payload/ \;
           zip -r ../LgRemoteController.ipa Payload
 
-      - name: Trả file .ipa về cho bạn tải xuống
+      - name: Trả file .ipa về cho bạn
         uses: actions/upload-artifact@v3
         with:
           name: LgRemoteController-TrollStore
