@@ -9,16 +9,20 @@ workflows:
       events:
         - push
     scripts:
-      - name: Bơm Node.js & Cài đặt Dependency
+      - name: Cài đặt Dependency
         script: |
-          sudo ln -s $(command -v node) /usr/local/bin/node || true
           npm install
 
-      - name: Khởi tạo thư mục iOS (Xóa bộ nhớ đệm)
+      - name: Khởi tạo thư mục iOS (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios --clean
 
-      - name: Vá lỗi Boost (Chống lỗi cú pháp YAML)
+      - name: Thiết lập Node.js chuẩn cho Xcode (Cứu Hermes Engine)
+        script: |
+          echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env.local
+          echo "--> Đã tạo file .xcode.env.local để chỉ thẳng đường dẫn Node cho Xcode"
+
+      - name: Vá lỗi Boost (Chống lỗi cú pháp)
         script: |
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           if [ -f "$BOOST_PODSPEC" ]; then
@@ -37,11 +41,11 @@ workflows:
           EOF
           fi
 
-      - name: Ép tiêu chuẩn C++14 & Tắt chữ ký mã (TrollStore)
+      - name: Ép tiêu chuẩn C++17 & Tắt chữ ký mã (TrollStore)
         script: |
           cat > patch_podfile.rb << 'EOF'
           file_path = "ios/Podfile"
-          exit unless File.exist?(file_path) # <-- Đã sửa lỗi ngớ ngẩn ở đây thành exit
+          exit unless File.exist?(file_path)
           
           content = File.read(file_path)
           patch = %q{
@@ -56,7 +60,7 @@ workflows:
                 config.build_settings["OTHER_CFLAGS"] = "-Wno-everything"
                 config.build_settings["OTHER_CPLUSPLUSFLAGS"] = "-Wno-everything"
                 config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "14.0"
-                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++14"
+                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
               end
             end
           }
