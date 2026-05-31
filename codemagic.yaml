@@ -39,7 +39,7 @@ workflows:
             file_path = "ios/Podfile"
             if File.exist?(file_path)
               content = File.read(file_path)
-              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n    end\n  end\n"
+              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n      config.build_settings[\"CLANG_CXX_LANGUAGE_STANDARD\"] = \"c++17\"\n    end\n  end\n"
               if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
                 content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
                 File.write(file_path, content)
@@ -52,6 +52,10 @@ workflows:
             end
           '
           cd ios && pod install
+          
+          echo "--> VÁ LỖI DT_TOOLCHAIN_DIR KHÉT TIẾNG CỦA XCODE 15..."
+          find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+          find Pods -type f -name '*.xcconfig' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
 
       - name: Biên dịch hệ thống (Bản chính thức - Release Mode)
         script: |
