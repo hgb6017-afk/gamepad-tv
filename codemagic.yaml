@@ -20,7 +20,7 @@ workflows:
           echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env
           echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env.local
 
-      - name: Patch Boost
+      - name: Patch Boost & Safely Inject C++ Flags into Podfile
         script: |
           echo "--> Patching Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
@@ -40,6 +40,44 @@ workflows:
           EOF
           fi
 
+          echo "--> Injecting safe CocoaPods configurations..."
+          cat > patch_podfile.rb << 'EOF'
+          file_path = "ios/Podfile"
+          exit unless File.exist?(file_path)
+          
+          content = File.read(file_path)
+          patch = %q{
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                # Tắt các tính năng Ký Mã và Hộp Cát
+                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                config.build_settings['CODE_SIGN_IDENTITY'] = ''
+                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+                config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+                config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
+                
+                # Bơm thần chú C++ một cách an toàn, KHÔNG đè cấu hình gốc của Folly
+                cpp_flags = config.build_settings['OTHER_CPLUSPLUSFLAGS']
+                if cpp_flags
+                  if cpp_flags.is_a?(Array)
+                    cpp_flags << '-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1'
+                  else
+                    config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "#{cpp_flags} -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1"
+                  end
+                else
+                  config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1'
+                end
+              end
+            end
+          }
+          if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
+            content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|\n#{patch}")
+            File.write(file_path, content)
+          end
+          EOF
+          ruby patch_podfile.rb
+
       - name: Pod Install & Strip Scripts
         script: |
           cd ios
@@ -52,48 +90,21 @@ workflows:
           echo "--> Disabling Code Signing in CocoaPods scripts..."
           find Pods -type f -name '*.sh' -exec sed -i '' 's/code_sign_if_enabled/echo "Skipped codesign"/g' {} +
 
-      - name: Ultimate Xcode Project Patcher (Ruby)
+      - name: Disable Xcode Project Auto-Signing (Main App)
         script: |
           cat > patch_pbxproj.rb << 'EOF'
           require 'xcodeproj'
-          
-          # 1. Tắt chữ ký cho App chính
-          main_project_path = 'ios/LgRemoteController.xcodeproj'
-          if File.exist?(main_project_path)
-            main_project = Xcodeproj::Project.open(main_project_path)
-            main_project.build_configurations.each do |config|
-              config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-              config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-              config.build_settings['CODE_SIGN_IDENTITY'] = ''
-              config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
-              config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-            end
-            main_project.save
-            puts "--> Main Project Patched!"
+          project_path = 'ios/LgRemoteController.xcodeproj'
+          exit unless File.exist?(project_path)
+          project = Xcodeproj::Project.open(project_path)
+          project.build_configurations.each do |config|
+            config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+            config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+            config.build_settings['CODE_SIGN_IDENTITY'] = ''
+            config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+            config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
           end
-
-          # 2. Xâm nhập vào Pods.xcodeproj để cứu Folly
-          pods_project_path = 'ios/Pods/Pods.xcodeproj'
-          if File.exist?(pods_project_path)
-            pods_project = Xcodeproj::Project.open(pods_project_path)
-            pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-                config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-                
-                # Bơm thần chú C++ thẳng vào mạch máu của Folly
-                cpp_flags = config.build_settings['OTHER_CPLUSPLUSFLAGS']
-                cpp_str = [cpp_flags].compact.flatten.join(' ')
-                config.build_settings['OTHER_CPLUSPLUSFLAGS'] = cpp_str + ' -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1 -Wno-everything'
-                
-                c_flags = config.build_settings['OTHER_CFLAGS']
-                c_str = [c_flags].compact.flatten.join(' ')
-                config.build_settings['OTHER_CFLAGS'] = c_str + ' -Wno-everything'
-              end
-            end
-            pods_project.save
-            puts "--> Pods Project Patched! Folly has been cured!"
-          end
+          project.save
           EOF
           gem install xcodeproj
           ruby patch_pbxproj.rb
@@ -110,7 +121,6 @@ workflows:
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGNING_IDENTITY="" \
                      ENABLE_USER_SCRIPT_SANDBOXING=NO \
-                     COMPILER_INDEX_STORE_ENABLE=NO \
                      clean build
 
       - name: Package IPA
