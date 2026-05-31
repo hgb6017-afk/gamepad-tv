@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      xcode: 15.2 # Chốt chặn phiên bản ổn định nhất của Xcode 15
+      # Đã xóa hoàn toàn dòng khóa Xcode để máy chủ tự lấy bản mặc định tốt nhất
     triggering:
       events:
         - push
@@ -57,7 +57,7 @@ workflows:
                 config.build_settings["OTHER_CFLAGS"] = "-Wno-everything"
                 config.build_settings["OTHER_CPLUSPLUSFLAGS"] = "-Wno-everything"
                 config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "14.0"
-                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++14" # Tuyệt chiêu trị tận gốc Folly
+                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++14"
               end
             end
           }
