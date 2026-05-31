@@ -5,39 +5,21 @@
   "build": {
     "development": {
       "ios": {
-        "simulator": true
+        "simulator": false
       },
-      "node": "20.19.4",
-      "env": {
-        "NO_FLIPPER": "1"
-      }
+      "node": "20.19.4"
     },
     "preview": {
       "ios": {
-        "simulator": true
+        "simulator": false
       },
-      "node": "20.19.4",
-      "env": {
-        "NO_FLIPPER": "1"
-      }
+      "node": "20.19.4"
     },
     "production": {
       "ios": {
-        "simulator": true
+        "simulator": false
       },
-      "node": "20.19.4",
-      "env": {
-        "NO_FLIPPER": "1"
-      }
-    },
-    "release": {
-      "ios": {
-        "simulator": true
-      },
-      "node": "20.19.4",
-      "env": {
-        "NO_FLIPPER": "1"
-      }
+      "node": "20.19.4"
     }
   }
 }
