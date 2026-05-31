@@ -1,29 +1,12 @@
 {
   "expo": {
-    "name": "tenacious-orange-truffles",
-    "slug": "snack-0a863d1d-12fe-4268-8cfd-cf2604e8b06f",
+    "name": "LgRemoteController",
+    "slug": "LgRemoteController",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "sdkVersion": "49.0.0",
     "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.baohg.lgremotecontroller"
     }
   }
 }
