@@ -29,6 +29,15 @@
       "env": {
         "NO_FLIPPER": "1"
       }
+    },
+    "release": {
+      "ios": {
+        "simulator": true
+      },
+      "node": "20.19.4",
+      "env": {
+        "NO_FLIPPER": "1"
+      }
     }
   }
 }
