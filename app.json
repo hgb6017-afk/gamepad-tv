@@ -6,10 +6,20 @@
     "sdkVersion": "49.0.0",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.baohg.lgremotecontroller",
-      "flipper": false
+      "bundleIdentifier": "com.baohg.lgremotecontroller"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "flipper": false
+          }
+        }
+      ]
+    ],
     "extra": {
+      "extraEasParams": "--resource-class m-medium",
       "eas": {
         "projectId": "840834f4-6d0f-426d-aa77-231133a7dbf4"
       }
