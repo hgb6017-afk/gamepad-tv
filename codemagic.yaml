@@ -5,6 +5,8 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
+      xcode: latest
+      cocoapods: default
     triggering:
       events:
         - push
@@ -17,7 +19,7 @@ workflows:
           npx expo prebuild --platform ios
       - name: Cài đặt CocoaPods gốc cho iOS (Ghi đè cấu hình chuẩn Boost)
         script: |
-          echo "--> Đang tiến hành tạo mới hoàn toàn cấu hình chuẩn cho Boost..."
+          echo "--> Đang tiến hành sửa đổi tệp tin cấu hình Podspec của Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           
           if [ -f "$BOOST_PODSPEC" ]; then
@@ -32,35 +34,33 @@ workflows:
             echo "  spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'" >> "$BOOST_PODSPEC"
             echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
             echo "end" >> "$BOOST_PODSPEC"
-            echo "--> Đã đồng bộ mã băm và nguồn tải Boost sạch thành công!"
+            echo "--> Đã ghi đè thành công nguồn tải Boost sạch cấu hình chuẩn!"
           fi
 
-          cd ios
-          pod install
-      - name: Tự động gom cấu hình và tạo file .app cho máy thật
+          cd ios && pod install
+      - name: Biên dịch và đóng gói ứng dụng chuyên dụng
         script: |
           cd ios
-          echo "--> Khởi động tiến trình biên dịch ứng dụng Xcode..."
+          echo "--> Đang tự động biên dịch dự án bằng bộ công cụ tối ưu của Codemagic..."
           
-          # Thực hiện biên dịch với tham số đầu ra rõ ràng cho thư mục build/
-          xcodebuild -workspace LgRemoteController.xcworkspace \
-                     -scheme LgRemoteController \
-                     -configuration Debug \
-                     -destination 'generic/platform=iOS' \
-                     -derivedDataPath build \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     clean build
-      - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
+          # Sử dụng công cụ nội bộ của Codemagic để tự động cấu hình và xuất file .app ẩn danh, bỏ qua bước ký mã (Sign) để chạy TrollStore
+          xcode-project build-ipa \
+            --workspace LgRemoteController.xcworkspace \
+            --scheme LgRemoteController \
+            --configuration Debug \
+            --sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+      - name: Gom cấu trúc Payload chuẩn cho TrollStore
         script: |
           cd ios
           mkdir -p Payload
+          echo "--> Gom tệp tin .app vào thư mục Payload..."
           
-          echo "--> Đang tìm kiếm tệp tin .app ứng dụng trong thư mục build vừa tạo..."
-          # Sao chép file .app vào thư mục Payload để đóng gói
-          cp -R build/Build/Products/Debug-iphoneos/*.app Payload/
+          # Quét tìm tệp .app ở mọi thư mục build đầu ra khả dụng để tránh lỗi không tìm thấy đường dẫn
+          find . -name "*.app" -maxdepth 4 -exec cp -R {} Payload/ \;
           
-          echo "--> Nén thư mục thành file cài đặt .ipa..."
+          echo "--> Đóng gói thành file cài đặt .ipa cuối cùng..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
