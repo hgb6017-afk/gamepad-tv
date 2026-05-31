@@ -7,6 +7,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.baohg.lgremotecontroller"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "840834f4-6d0f-426d-aa77-231133a7dbf4"
+      }
     }
   }
 }
