@@ -2,7 +2,7 @@ workflows:
   react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     environment:
       node: 20.19.4
     triggering:
@@ -40,22 +40,27 @@ workflows:
       - name: Tự động gom cấu hình và tạo file .app cho máy thật
         script: |
           cd ios
-          echo "--> Đang tự động quét tìm tệp Workspace của dự án..."
+          echo "--> Khởi động tiến trình biên dịch ứng dụng Xcode..."
           
-          # Tự động tìm tệp tin .xcworkspace thực tế trong thư mục ios
-          WORKSPACE_FILE=$(ls -d *.xcworkspace | head -n 1)
-          SCHEME_NAME=$(basename "$WORKSPACE_FILE" .xcworkspace)
-          
-          echo "--> Tìm thấy Workspace: $WORKSPACE_FILE"
-          echo "--> Tên Scheme tương ứng: $SCHEME_NAME"
-          echo "--> Tiến hành thực hiện biên dịch ứng dụng..."
-          
-          xcodebuild -workspace "$WORKSPACE_FILE" -scheme "$SCHEME_NAME" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
+          # Thực hiện biên dịch với tham số đầu ra rõ ràng cho thư mục build/
+          xcodebuild -workspace LgRemoteController.xcworkspace \
+                     -scheme LgRemoteController \
+                     -configuration Debug \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     clean build
       - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          find build/Build/Products/Debug-iphoneos -name "*.app" -maxdepth 1 -exec cp -R {} Payload/ \;
+          
+          echo "--> Đang tìm kiếm tệp tin .app ứng dụng trong thư mục build vừa tạo..."
+          # Sao chép file .app vào thư mục Payload để đóng gói
+          cp -R build/Build/Products/Debug-iphoneos/*.app Payload/
+          
+          echo "--> Nén thư mục thành file cài đặt .ipa..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
