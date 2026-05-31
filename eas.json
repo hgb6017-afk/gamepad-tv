@@ -4,9 +4,8 @@
   },
   "build": {
     "development": {
-      "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": true
       },
       "node": "20.19.4"
     }
