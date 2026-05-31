@@ -5,7 +5,6 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      # Đã xóa dòng ép buộc Xcode cũ để hệ thống dùng bản mặc định tốt nhất
     triggering:
       events:
         - push
@@ -16,7 +15,7 @@ workflows:
       - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios
-      - name: Vá lỗi Boost & Ép Xcode bỏ qua lỗi C++
+      - name: Vá lỗi Boost & Trộn mã sửa lỗi vào Podfile gốc
         script: |
           echo "--> Sửa tệp cấu hình Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
@@ -35,31 +34,33 @@ workflows:
             echo "end" >> "$BOOST_PODSPEC"
           fi
 
-          echo "--> Tiêm mã vô hiệu hóa chữ ký và tắt kiểm tra lỗi C++ nghiêm ngặt..."
-          cat << 'EOF' >> ios/Podfile
-          
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                # 1. Tắt hoàn toàn chữ ký ứng dụng
-                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-                config.build_settings['CODE_SIGNING_IDENTITY'] = ''
-                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
-                
-                # 2. VÁ LỖI C++ (YGValue.cpp): Ép Xcode không được coi cảnh báo là lỗi
-                config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-                config.build_settings['WARNING_CFLAGS'] = '-Wno-everything'
+          echo "--> Dùng Ruby trộn mã sửa lỗi trực tiếp vào bên trong post_install của Expo..."
+          ruby -e '
+            file_path = "ios/Podfile"
+            if File.exist?(file_path)
+              content = File.read(file_path)
+              
+              # Đoạn mã bẻ khóa chữ ký và tắt kiểm tra lỗi nghiêm ngặt của mã nguồn C++ (Yoga)
+              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n    end\n  end\n"
+              
+              # Tìm chính xác vị trí hàm post_install của Expo để chèn mã vào bên trong
+              if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
+                content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
+                File.write(file_path, content)
+                puts "--> Đã hòa trộn mã cấu hình sửa lỗi thành công!"
+              else
+                puts "--> Không tìm thấy khối post_install gốc!"
               end
+            else
+              puts "--> Không tìm thấy Podfile!"
             end
-          end
-          EOF
+          '
 
           cd ios && pod install
       - name: Biên dịch hệ thống (Bản chính thức - Release Mode)
         script: |
           cd ios
-          echo "--> Tiến hành build ứng dụng độc lập không cần chứng chỉ..."
+          echo "--> Tiến hành biên dịch ứng dụng độc lập không cần chứng chỉ..."
           
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
