@@ -21,7 +21,7 @@ workflows:
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           
           if [ -f "$BOOST_PODSPEC" ]; then
-            # Ghi đè file bằng nội dung podspec đầy đủ thuộc tính cấu hình chuẩn của React Native
+            # Ghi đè cấu hình Podspec và chỉ định rõ thuộc tính định dạng file nén (:type => :tbz)
             echo "Pod::Spec.new do |spec|" > "$BOOST_PODSPEC"
             echo "  spec.name = 'boost'" >> "$BOOST_PODSPEC"
             echo "  spec.version = '1.76.0'" >> "$BOOST_PODSPEC"
@@ -29,11 +29,11 @@ workflows:
             echo "  spec.homepage = 'http://www.boost.org'" >> "$BOOST_PODSPEC"
             echo "  spec.summary = 'Boost provides free peer-reviewed portable C++ source libraries.'" >> "$BOOST_PODSPEC"
             echo "  spec.authors = 'Rene Rivera'" >> "$BOOST_PODSPEC"
-            echo "  spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => '7ae219a04217b86670ef8ab381619c1d90d04dbe8c88f58a29fc64c56345af63' }" >> "$BOOST_PODSPEC"
+            echo "  spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => '7ae219a04217b86670ef8ab381619c1d90d04dbe8c88f58a29fc64c56345af63', :type => :tbz }" >> "$BOOST_PODSPEC"
             echo "  spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'" >> "$BOOST_PODSPEC"
             echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
             echo "end" >> "$BOOST_PODSPEC"
-            echo "--> Đã cấu hình nguồn tải Boost sạch về SourceForge thành công!"
+            echo "--> Đã cấu hình nguồn tải Boost và định dạng nén thành công!"
           else
             echo "--> Không tìm thấy file podspec của boost."
           fi
