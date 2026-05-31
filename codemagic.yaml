@@ -39,11 +39,7 @@ workflows:
             file_path = "ios/Podfile"
             if File.exist?(file_path)
               content = File.read(file_path)
-              
-              # Đoạn mã bẻ khóa chữ ký và tắt kiểm tra lỗi nghiêm ngặt của mã nguồn C++ (Yoga)
-              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n    end\n  end\n"
-              
-              # Tìm chính xác vị trí hàm post_install của Expo để chèn mã vào bên trong
+              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n    end\n  end\n"
               if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
                 content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
                 File.write(file_path, content)
@@ -55,13 +51,14 @@ workflows:
               puts "--> Không tìm thấy Podfile!"
             end
           '
-
           cd ios && pod install
+
       - name: Biên dịch hệ thống (Bản chính thức - Release Mode)
         script: |
           cd ios
+          echo "--> Bơm đường dẫn Node.js cho Hermes Engine..."
+          export NODE_BINARY=$(command -v node)
           echo "--> Tiến hành biên dịch ứng dụng độc lập không cần chứng chỉ..."
-          
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
                      -configuration Release \
@@ -71,14 +68,12 @@ workflows:
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGNING_IDENTITY="" \
                      clean build
+
       - name: Trích xuất và cấu trúc tệp Payload .ipa cho TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          
-          echo "--> Quét tìm thông minh file .app trong thư mục Release..."
           find build/Build/Products -name "*.app" -type d -exec cp -R {} Payload/ \;
-          
           echo "--> Đóng gói thành file cài đặt .ipa cuối cùng..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
