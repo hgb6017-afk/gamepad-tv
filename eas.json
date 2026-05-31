@@ -6,21 +6,24 @@
     "development": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "enterpriseProvisioning": "universal"
       },
       "node": "20.19.4"
     },
     "preview": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "enterpriseProvisioning": "universal"
       },
       "node": "20.19.4"
     },
     "production": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "enterpriseProvisioning": "universal"
       },
       "node": "20.19.4"
     }
