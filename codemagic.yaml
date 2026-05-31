@@ -36,30 +36,31 @@ workflows:
           fi
 
           cd ios && pod install
-      - name: Biên dịch hệ thống và Đóng gói Xcode Archive
+      - name: Biên dịch hệ thống cấu trúc thô (Simulator Bypass Sign)
         script: |
           cd ios
-          echo "--> Tiến hành Archive dự án tạo bản phân phối chuẩn..."
+          echo "--> Tiến hành build ứng dụng cấu trúc Simulator arm64 để loại bỏ ép buộc ký mã Apple..."
           
-          # Sử dụng lệnh archive để gom toàn bộ app và framework thành 1 gói duy nhất
+          # Biên dịch trực tiếp ra thư mục build tùy biến mà hoàn toàn không cần đụng tới bước định danh profile
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
                      -configuration Debug \
-                     -destination 'generic/platform=iOS' \
-                     -archivePath build/LgRemoteController.xcarchive \
+                     -sdk iphonesimulator \
+                     -arch arm64 \
+                     -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
-                     clean archive
-      - name: Trích xuất file .app và tạo cấu trúc IPA cho TrollStore
+                     clean build
+      - name: Trích xuất và cấu trúc tệp Payload .ipa cho TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          echo "--> Đang trích xuất file .app từ gói Archive đã dựng..."
+          echo "--> Thu thập tệp ứng dụng .app đã build thành công..."
           
-          # Sao chép trực tiếp file .app từ trong gói Archive ra thư mục Payload
-          cp -R build/LgRemoteController.xcarchive/Products/Applications/*.app Payload/
+          # Bản dựng cho Simulator lưu trong cấu trúc Debug-iphonesimulator
+          cp -R build/Build/Products/Debug-iphonesimulator/*.app Payload/
           
-          echo "--> Nén thư mục Payload thành file cài đặt .ipa cuối cùng..."
+          echo "--> Đóng gói nén zip sang cấu trúc .ipa dành riêng cho TrollStore..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
