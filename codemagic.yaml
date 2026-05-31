@@ -1,0 +1,32 @@
+workflows:
+  react-native-ios:
+    name: Build iOS IPA (TrollStore)
+    max_build_duration: 60
+    instance_type: mac_mini_m1 # Dùng máy Mac M1 miễn phí chạy cực kỳ nhanh
+    environment:
+      node: 20.19.4
+    triggering:
+      events:
+        - push
+    scripts:
+      - name: Cài đặt các gói Dependency trong package.json
+        script: |
+          npm install
+      - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
+        script: |
+          npx expo prebuild --platform ios
+      - name: Tự động gom cấu hình và tạo file .app cho máy thật
+        script: |
+          # Chạy lệnh xcodebuild thô của Mac để xuất app kiến trúc ARM64 cho iPhone thật
+          cd ios
+          xcodebuild -workspace *.xcworkspace -scheme * -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
+      - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
+        script: |
+          cd ios
+          mkdir -p Payload
+          # Tìm file .app vừa build xong và sao chép vào Payload
+          cp -R build/Build/Products/Debug-iphoneos/*.app Payload/
+          # Nén thành file .ipa vĩnh viễn
+          zip -r ../LgRemoteController.ipa Payload
+    artifacts:
+      - LgRemoteController.ipa
