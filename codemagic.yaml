@@ -2,62 +2,82 @@ workflows:
   react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
-    instance_type: mac_mini_m1  # <-- CHÌA KHÓA: Hạ máy chủ xuống M1
+    instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      xcode: 14.3.1  # <-- Xcode 14 hoàn toàn tương thích với RN 0.72 trên M1
+      xcode: 15.2 # Chốt chặn phiên bản ổn định nhất của Xcode 15
     triggering:
       events:
         - push
     scripts:
-      - name: Bơm Node.js vào hệ thống & Cài đặt Dependency
+      - name: Bơm Node.js & Cài đặt Dependency
         script: |
-          echo "--> Ép hệ thống nhận diện Node.js cho script ẩn của Xcode..."
           sudo ln -s $(command -v node) /usr/local/bin/node || true
           npm install
 
-      - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
+      - name: Khởi tạo thư mục iOS (Xóa bộ nhớ đệm)
         script: |
-          npx expo prebuild --platform ios
+          npx expo prebuild --platform ios --clean
 
-      - name: Vá lỗi Boost & Trộn mã tắt chữ ký vào Podfile
+      - name: Vá lỗi Boost (Chống lỗi cú pháp YAML)
         script: |
-          echo "--> Sửa tệp cấu hình Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
-          
           if [ -f "$BOOST_PODSPEC" ]; then
-            echo "Pod::Spec.new do |spec|" > "$BOOST_PODSPEC"
-            echo "  spec.name = 'boost'" >> "$BOOST_PODSPEC"
-            echo "  spec.version = '1.76.0'" >> "$BOOST_PODSPEC"
-            echo "  spec.license = { :type => 'Boost Software License' }" >> "$BOOST_PODSPEC"
-            echo "  spec.homepage = 'http://www.boost.org'" >> "$BOOST_PODSPEC"
-            echo "  spec.summary = 'Boost provides free peer-reviewed portable C++ source libraries.'" >> "$BOOST_PODSPEC"
-            echo "  spec.authors = 'Rene Rivera'" >> "$BOOST_PODSPEC"
-            echo "  spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => 'f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41', :type => :tbz }" >> "$BOOST_PODSPEC"
-            echo "  spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'" >> "$BOOST_PODSPEC"
-            echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
-            echo "end" >> "$BOOST_PODSPEC"
+            cat > "$BOOST_PODSPEC" << 'EOF'
+            Pod::Spec.new do |spec|
+              spec.name = 'boost'
+              spec.version = '1.76.0'
+              spec.license = { :type => 'Boost Software License' }
+              spec.homepage = 'http://www.boost.org'
+              spec.summary = 'Boost provides free peer-reviewed portable C++ source libraries.'
+              spec.authors = 'Rene Rivera'
+              spec.source = { :http => 'https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download', :sha256 => 'f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41', :type => :tbz }
+              spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'
+              spec.header_mappings_dir = '.'
+            end
+          EOF
           fi
 
-          echo "--> Trộn mã cấu hình vào post_install..."
-          ruby -e '
-            file_path = "ios/Podfile"
-            if File.exist?(file_path)
-              content = File.read(file_path)
-              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n    end\n  end\n"
-              if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
-                content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
-                File.write(file_path, content)
-                puts "--> Đã hòa trộn thành công!"
+      - name: Ép tiêu chuẩn C++14 & Tắt chữ ký mã (TrollStore)
+        script: |
+          cat > patch_podfile.rb << 'EOF'
+          file_path = "ios/Podfile"
+          next unless File.exist?(file_path)
+          
+          content = File.read(file_path)
+          patch = %q{
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
+                config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"
+                config.build_settings["CODE_SIGNING_IDENTITY"] = ""
+                config.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""
+                config.build_settings["GCC_TREAT_WARNINGS_AS_ERRORS"] = "NO"
+                config.build_settings["WARNING_CFLAGS"] = "-Wno-everything"
+                config.build_settings["OTHER_CFLAGS"] = "-Wno-everything"
+                config.build_settings["OTHER_CPLUSPLUSFLAGS"] = "-Wno-everything"
+                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "14.0"
+                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++14" # Tuyệt chiêu trị tận gốc Folly
               end
             end
-          '
-          cd ios && pod install
+          }
+          if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
+            content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|\n#{patch}")
+            File.write(file_path, content)
+          end
+          EOF
+          ruby patch_podfile.rb
 
-      - name: Biên dịch hệ thống (Bản chính thức - Release Mode)
+      - name: Cài đặt Pods & Xử lý DT_TOOLCHAIN_DIR
         script: |
           cd ios
-          echo "--> Tiến hành biên dịch ứng dụng độc lập không cần chứng chỉ..."
+          pod install
+          find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+          find Pods -type f -name '*.xcconfig' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
+
+      - name: Biên dịch ứng dụng (Bản chính thức)
+        script: |
+          cd ios
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
                      -configuration Release \
@@ -68,12 +88,11 @@ workflows:
                      CODE_SIGNING_IDENTITY="" \
                      clean build
 
-      - name: Trích xuất và cấu trúc tệp Payload .ipa cho TrollStore
+      - name: Đóng gói tệp IPA
         script: |
           cd ios
           mkdir -p Payload
           find build/Build/Products -name "*.app" -type d -exec cp -R {} Payload/ \;
-          echo "--> Đóng gói thành file cài đặt .ipa cuối cùng..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
