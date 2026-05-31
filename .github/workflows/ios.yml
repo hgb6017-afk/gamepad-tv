@@ -1,34 +1,56 @@
-name: Kich Hoat Remote Desktop MacOS
+name: Build iOS IPA (TrollStore)
+
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-13 # ĐÂY LÀ CHÌA KHÓA: Máy chủ macOS 13 sử dụng Xcode 14 chuẩn chỉ!
+    
     steps:
-      - name: Tải Ngrok bản Apple Silicon siêu tốc (Fix lỗi Treo máy)
-        run: |
-          # Tải đúng bản ARM64 dành cho chip Apple M1/M2 trên máy ảo GitHub
-          curl -Lk https://bin.equinox.io/c/bNyj1mQcaMx/ngrok-v3-stable-darwin-arm64.zip -o ngrok.zip
-          unzip ngrok.zip
-          sudo mv ngrok /usr/local/bin/
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v3
 
-      - name: Cấu hình và Xác thực Token Ngrok
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Cài đặt Dependency
+        run: npm install
+
+      - name: Khởi tạo thư mục iOS (Expo Prebuild)
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Cài đặt CocoaPods
         run: |
-          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          
-      - name: Kích hoạt Screen Sharing (Remote Desktop)
+          cd ios
+          pod install
+
+      - name: Biên dịch ứng dụng (Tắt chữ ký mã)
         run: |
-          sudo defaults write /Library/Preferences/com.apple.RemoteManagement VNCEverywhere -bool true
-          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
-          
-      - name: Thiết lập mật khẩu máy Mac (@Baohg123)
+          cd ios
+          xcodebuild -workspace LgRemoteController.xcworkspace \
+                     -scheme LgRemoteController \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_IDENTITY="" \
+                     clean build
+
+      - name: Đóng gói thành file .ipa
         run: |
-          sudo dscl . -passwd /Users/runner @Baohg123
-          
-      - name: Mở cổng kết nối công khai
-        run: |
-          # Ép chạy trên vùng Châu Á (ap) để kết nối từ VN/VPS được mượt nhất
-          ngrok tcp --region=ap 5900
+          cd ios
+          mkdir -p Payload
+          # Tìm đúng file .app vừa build xong và copy vào Payload
+          find build/Build/Products -name "*.app" -type d -exec cp -R {} Payload/ \;
+          zip -r ../LgRemoteController.ipa Payload
+
+      - name: Trả file .ipa về cho bạn tải xuống
+        uses: actions/upload-artifact@v3
+        with:
+          name: LgRemoteController-TrollStore
+          path: ios/LgRemoteController.ipa
