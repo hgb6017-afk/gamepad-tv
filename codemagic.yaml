@@ -2,9 +2,12 @@ workflows:
   react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
-    instance_type: mac_mini_m2
+    # CHÌA KHÓA 1: Dùng M1 để tương thích tốt nhất với Xcode 14
+    instance_type: mac_mini_m1 
     environment:
-      node: 20.19.4
+      node: 18.19.0
+      xcode: 14.3 # CHÌA KHÓA 2: Ép dùng Xcode 14.3 để vá triệt để lỗi YGValue.cpp
+      cocoapods: default
     triggering:
       events:
         - push
@@ -15,9 +18,9 @@ workflows:
       - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios
-      - name: Cài đặt CocoaPods gốc cho iOS (Ghi đè cấu hình chuẩn Boost)
+      - name: Sửa lỗi Boost & Ép tắt chữ ký toàn bộ Pods
         script: |
-          echo "--> Đang tiến hành sửa đổi tệp tin cấu hình Podspec của Boost..."
+          echo "--> Sửa tệp cấu hình Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
           
           if [ -f "$BOOST_PODSPEC" ]; then
@@ -32,35 +35,47 @@ workflows:
             echo "  spec.source_files = 'boost/**/*.{{h,hpp,ipp}}'" >> "$BOOST_PODSPEC"
             echo "  spec.header_mappings_dir = '.'" >> "$BOOST_PODSPEC"
             echo "end" >> "$BOOST_PODSPEC"
-            echo "--> Đã ghi đè thành công nguồn tải Boost sạch cấu hình chuẩn!"
           fi
 
+          # CHÌA KHÓA 3: Tiêm mã tắt yêu cầu chữ ký cho 100% các thư viện bên thứ 3
+          cat << 'EOF' >> ios/Podfile
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                config.build_settings['CODE_SIGNING_IDENTITY'] = ''
+              end
+            end
+          end
+          EOF
+
           cd ios && pod install
-      - name: Biên dịch hệ thống cấu trúc thô (Simulator Bypass Sign)
+      - name: Biên dịch hệ thống (Bypass Sign & Release Mode)
         script: |
           cd ios
-          echo "--> Tiến hành build ứng dụng cấu trúc Simulator arm64 để loại bỏ ép buộc ký mã Apple..."
+          echo "--> Tiến hành build ứng dụng độc lập (Release) không cần chứng chỉ..."
           
-          # Biên dịch trực tiếp ra thư mục build tùy biến mà hoàn toàn không cần đụng tới bước định danh profile
+          # CHÌA KHÓA 4: Build Release để App chạy được độc lập trên điện thoại mà không bị văng
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
-                     -configuration Debug \
-                     -sdk iphonesimulator \
-                     -arch arm64 \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
                      -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_IDENTITY="" \
                      clean build
       - name: Trích xuất và cấu trúc tệp Payload .ipa cho TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          echo "--> Thu thập tệp ứng dụng .app đã build thành công..."
           
-          # Bản dựng cho Simulator lưu trong cấu trúc Debug-iphonesimulator
-          cp -R build/Build/Products/Debug-iphonesimulator/*.app Payload/
+          # CHÌA KHÓA 5: Quét tìm thông minh, gắp chính xác file .app bỏ vào Payload
+          find build/Build/Products -name "*.app" -type d -exec cp -R {} Payload/ \;
           
-          echo "--> Đóng gói nén zip sang cấu trúc .ipa dành riêng cho TrollStore..."
+          echo "--> Đóng gói thành file cài đặt .ipa cuối cùng..."
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
       - LgRemoteController.ipa
