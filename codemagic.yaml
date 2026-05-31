@@ -5,7 +5,6 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      xcode: 14.3.1 # <-- CHÌA KHÓA VÀNG LÀ ĐÂY: Hạ cấp Xcode để tương thích hoàn toàn với Folly/React Native 0.72
     triggering:
       events:
         - push
@@ -40,7 +39,7 @@ workflows:
             file_path = "ios/Podfile"
             if File.exist?(file_path)
               content = File.read(file_path)
-              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n    end\n  end\n"
+              patch = "\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"GCC_TREAT_WARNINGS_AS_ERRORS\"] = \"NO\"\n      config.build_settings[\"WARNING_CFLAGS\"] = \"-Wno-everything\"\n      config.build_settings[\"OTHER_CPLUSPLUSFLAGS\"] = \"$(inherited) -Wno-everything\"\n      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"14.0\"\n      config.build_settings[\"CLANG_CXX_LANGUAGE_STANDARD\"] = \"c++17\"\n    end\n  end\n"
               if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
                 content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|#{patch}")
                 File.write(file_path, content)
