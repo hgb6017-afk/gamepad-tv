@@ -2,34 +2,33 @@ name: Kich Hoat Remote Desktop MacOS
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Cho phép bấm nút chạy thủ công bất cứ lúc nào
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-13 # Giữ bản macOS 13 chuẩn ổn định
+    runs-on: macos-13
     steps:
-      - name: Tải và giải nén Ngrok siêu tốc (Bypass Homebrew)
+      - name: Tải Ngrok bản Apple Silicon siêu tốc (Fix lỗi Treo máy)
         run: |
-          # Tải trực tiếp file chạy của Ngrok dành cho máy Mac từ trang chủ
-          curl -Lk https://bin.equinox.io/c/bNyj1mQcaMx/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
+          # Tải đúng bản ARM64 dành cho chip Apple M1/M2 trên máy ảo GitHub
+          curl -Lk https://bin.equinox.io/c/bNyj1mQcaMx/ngrok-v3-stable-darwin-arm64.zip -o ngrok.zip
           unzip ngrok.zip
-          # Chuyển file ngrok vào thư mục hệ thống để gọi lệnh ngắn gọn
           sudo mv ngrok /usr/local/bin/
 
-      - name: Khai báo Token kết nối Ngrok
+      - name: Cấu hình và Xác thực Token Ngrok
         run: |
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
           
-      - name: Kích hoạt tính năng Screen Sharing (Remote Desktop) trên máy Mac
+      - name: Kích hoạt Screen Sharing (Remote Desktop)
         run: |
           sudo defaults write /Library/Preferences/com.apple.RemoteManagement VNCEverywhere -bool true
           sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
           
-      - name: Tạo mật khẩu đăng nhập máy Mac
+      - name: Thiết lập mật khẩu máy Mac (@Baohg123)
         run: |
-          # Mật khẩu đăng nhập VNC: @Baohg123
           sudo dscl . -passwd /Users/runner @Baohg123
           
-      - name: Mở cổng kết nối công khai (Giữ máy chạy trong 6 tiếng)
+      - name: Mở cổng kết nối công khai
         run: |
-          ngrok tcp 5900 --region ap
+          # Ép chạy trên vùng Châu Á (ap) để kết nối từ VN/VPS được mượt nhất
+          ngrok tcp --region=ap 5900
