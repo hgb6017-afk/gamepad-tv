@@ -2,7 +2,7 @@ workflows:
   react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
-    instance_type: mac_mini_m1 # Dùng máy Mac M1 miễn phí chạy cực kỳ nhanh
+    instance_type: mac_mini_m1
     environment:
       node: 20.19.4
     triggering:
@@ -17,15 +17,20 @@ workflows:
           npx expo prebuild --platform ios
       - name: Tự động gom cấu hình và tạo file .app cho máy thật
         script: |
-          # Chạy lệnh xcodebuild thô của Mac để xuất app kiến trúc ARM64 cho iPhone thật
           cd ios
-          xcodebuild -workspace *.xcworkspace -scheme * -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
+          # Tìm chính xác tên file xcworkspace thực tế trong thư mục để ép chạy
+          WORKSPACE_NAME=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
+          
+          echo "Đang build dự án: $SCHEME_NAME với file $WORKSPACE_NAME"
+          
+          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
       - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          # Tìm file .app vừa build xong và sao chép vào Payload
-          cp -R build/Build/Products/Debug-iphoneos/*.app Payload/
+          # Tự động quét tìm file .app bất kể tên là gì để sao chép vào Payload
+          find build/Build/Products/Debug-iphoneos -name "*.app" -maxdepth 1 -exec cp -R {} Payload/ \;
           # Nén thành file .ipa vĩnh viễn
           zip -r ../LgRemoteController.ipa Payload
     artifacts:
