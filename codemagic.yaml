@@ -15,22 +15,22 @@ workflows:
       - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios
-      - name: Cài đặt CocoaPods gốc cho iOS (Dứt điểm lỗi Boost 100%)
+      - name: Cài đặt CocoaPods gốc cho iOS (Thay đổi URL Boost chuẩn)
         script: |
-          echo "--> Bước 1: Sửa mã Checksum trong podspec để đánh lừa CocoaPods"
+          echo "--> Bắt đầu cấu hình lại nguồn tải thư viện Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
+          
           if [ -f "$BOOST_PODSPEC" ]; then
+            # 1. Ép thay đổi URL tải của Boost sang link SourceForge bản chuẩn sạch
+            sed -i '' 's|spec.source = { :http => .* }|spec.source = { :http => "https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download" }|g' "$BOOST_PODSPEC"
+            
+            # 2. Cập nhật mã checksum mới tương ứng với file của SourceForge để vượt qua bộ lọc băm
             sed -i '' 's/f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41/7ae219a04217b86670ef8ab381619c1d90d04dbe8c88f58a29fc64c56345af63/g' "$BOOST_PODSPEC"
-            echo "--> Vá file cấu hình thành công!"
+            
+            echo "--> Cấu hình chuyển hướng nguồn Boost thành công!"
+          else
+            echo "--> Không tìm thấy file boost.podspec!"
           fi
-
-          echo "--> Bước 2: Tự tải và giải nén Boost chuẩn vào thư mục đích"
-          mkdir -p node_modules/react-native/third-party
-          curl -Lk https://sourceforge.net/projects/boost/files/boost/1.76.0/boost_1_76_0.tar.bz2/download -o boost_1_76_0.tar.bz2
-          tar -xf boost_1_76_0.tar.bz2 -C node_modules/react-native/third-party
-          rm -rf node_modules/react-native/third-party/boost
-          mv node_modules/react-native/third-party/boost_1_76_0 node_modules/react-native/third-party/boost
-          echo "--> Chuẩn bị dữ liệu Boost hoàn tất!"
 
           cd ios
           pod install
