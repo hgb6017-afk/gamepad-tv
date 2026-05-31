@@ -9,16 +9,18 @@ workflows:
       events:
         - push
     scripts:
-      - name: Cài đặt Dependency
+      - name: Cài đặt Dependency & Cấu hình Node
         script: |
           npm install
-
+          
       - name: Khởi tạo thư mục iOS (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios --clean
+          echo "--> Bơm Node.js vào mọi ngóc ngách của Xcode..."
+          echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env
           echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env.local
 
-      - name: Phẫu thuật mã nguồn Folly & Boost (Trị dứt điểm C++)
+      - name: Vá lỗi C++ (Folly & Boost)
         script: |
           echo "--> Vá cấu hình thư viện Boost..."
           BOOST_PODSPEC="node_modules/react-native/third-party-podspecs/boost.podspec"
@@ -36,28 +38,69 @@ workflows:
             echo "end" >> "$BOOST_PODSPEC"
           fi
 
-          echo "--> Tiêm thần chú C++ thẳng vào lõi Folly..."
+          echo "--> Vá thư viện Folly..."
           FOLLY_PODSPEC="node_modules/react-native/third-party-podspecs/Folly.podspec"
           if [ -f "$FOLLY_PODSPEC" ]; then
             sed -i '' 's/-DFOLLY_NO_CONFIG/-DFOLLY_NO_CONFIG -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION=1/g' "$FOLLY_PODSPEC"
           fi
 
-      - name: Cài đặt Pods & Cắt bỏ tính năng Ký mã (Codesign)
+      - name: Trị dứt điểm Yoga & Tắt chữ ký (TrollStore)
+        script: |
+          cat > patch_podfile.rb << 'EOF'
+          file_path = "ios/Podfile"
+          exit unless File.exist?(file_path)
+          
+          content = File.read(file_path)
+          patch = %q{
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                # Cấm Ký Mã
+                config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
+                config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"
+                config.build_settings["CODE_SIGNING_IDENTITY"] = ""
+                config.build_settings["EXPANDED_CODE_SIGN_IDENTITY"] = ""
+                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "14.0"
+                
+                # Cấm Hộp Cát (Cứu Hermes)
+                config.build_settings["ENABLE_USER_SCRIPT_SANDBOXING"] = "NO"
+                
+                # Cấm Xcode báo lỗi C++ (Cứu Yoga YGValue)
+                config.build_settings["GCC_TREAT_WARNINGS_AS_ERRORS"] = "NO"
+                
+                cppflags = config.build_settings["OTHER_CPLUSPLUSFLAGS"] || ["$(inherited)"]
+                cppflags = [cppflags] if cppflags.is_a?(String)
+                cppflags.push("-Wno-everything")
+                config.build_settings["OTHER_CPLUSPLUSFLAGS"] = cppflags.uniq.join(" ")
+
+                cflags = config.build_settings["OTHER_CFLAGS"] || ["$(inherited)"]
+                cflags = [cflags] if cflags.is_a?(String)
+                cflags.push("-Wno-everything")
+                config.build_settings["OTHER_CFLAGS"] = cflags.uniq.join(" ")
+              end
+            end
+          }
+          if content.match(/post_install\s*do\s*\|\s*installer\s*\|/)
+            content.sub!(/post_install\s*do\s*\|\s*installer\s*\|/, "post_install do |installer|\n#{patch}")
+            File.write(file_path, content)
+          end
+          EOF
+          ruby patch_podfile.rb
+
+      - name: Cài đặt Pods & Xóa CodeSign ẩn trong kịch bản
         script: |
           cd ios
           pod install
           
-          echo "--> Cập nhật đường dẫn Toolchain..."
+          echo "--> Vá lỗi đường dẫn hệ thống DT_TOOLCHAIN_DIR..."
           find Pods -type f -name '*.sh' -exec sed -i '' -e 's/DT_TOOLCHAIN_DIR/TOOLCHAIN_DIR/g' {} +
           
-          echo "--> Vô hiệu hóa quá trình Codesign trong script của CocoaPods..."
+          echo "--> Cắt đứt hàm xin chữ ký trong file script của Hermes..."
           find Pods -type f -name '*-frameworks.sh' -exec sed -i '' 's/code_sign_if_enabled/echo "Da tat CodeSign"/g' {} +
           find Pods -type f -name '*-xcframeworks.sh' -exec sed -i '' 's/code_sign_if_enabled/echo "Da tat CodeSign"/g' {} +
 
-      - name: Biên dịch ứng dụng (Bản chính thức - TrollStore)
+      - name: Biên dịch ứng dụng (Bản chính thức)
         script: |
           cd ios
-          echo "--> Khởi chạy Xcodebuild..."
           xcodebuild -workspace LgRemoteController.xcworkspace \
                      -scheme LgRemoteController \
                      -configuration Release \
