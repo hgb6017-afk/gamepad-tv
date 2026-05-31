@@ -5,7 +5,6 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 20.19.4
-      # Đã xóa hoàn toàn dòng khóa Xcode để máy chủ tự lấy bản mặc định tốt nhất
     triggering:
       events:
         - push
@@ -42,7 +41,7 @@ workflows:
         script: |
           cat > patch_podfile.rb << 'EOF'
           file_path = "ios/Podfile"
-          next unless File.exist?(file_path)
+          exit unless File.exist?(file_path) # <-- Đã sửa lỗi ngớ ngẩn ở đây thành exit
           
           content = File.read(file_path)
           patch = %q{
