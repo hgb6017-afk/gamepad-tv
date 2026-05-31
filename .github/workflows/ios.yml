@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13 # Ép chạy trên máy Mac thật của GitHub
+    runs-on: macos-latest # Ép chạy trên máy Mac thật của GitHub
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
