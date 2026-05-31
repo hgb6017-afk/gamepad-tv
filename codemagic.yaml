@@ -15,21 +15,31 @@ workflows:
       - name: Khởi tạo thư mục iOS gốc (Expo Prebuild)
         script: |
           npx expo prebuild --platform ios
+      - name: Cài đặt CocoaPods gốc cho iOS (Sửa lỗi thiếu xcworkspace)
+        script: |
+          cd ios
+          pod install
       - name: Tự động gom cấu hình và tạo file .app cho máy thật
         script: |
           cd ios
-          # Tìm chính xác tên file xcworkspace thực tế trong thư mục để ép chạy
-          WORKSPACE_NAME=$(ls -d *.xcworkspace | head -n 1)
-          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
           
-          echo "Đang build dự án: $SCHEME_NAME với file $WORKSPACE_NAME"
+          # Tự động dò tìm file cấu hình bất kể là xcodeproj hay xcworkspace
+          if [ -d *.xcworkspace ]; then
+            PROJECT_FLAG="-workspace $(ls -d *.xcworkspace | head -n 1)"
+            SCHEME_NAME=$(basename "$(ls -d *.xcworkspace | head -n 1)" .xcworkspace)
+          else
+            PROJECT_FLAG="-project $(ls -d *.xcodeproj | head -n 1)"
+            SCHEME_NAME=$(basename "$(ls -d *.xcodeproj | head -n 1)" .xcodeproj)
+          fi
           
-          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
+          echo "Đang tiến hành biên dịch dự án: $SCHEME_NAME"
+          
+          xcodebuild $PROJECT_FLAG -scheme "$SCHEME_NAME" -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean build
       - name: Đóng gói thành cấu trúc Payload (.ipa) chuẩn TrollStore
         script: |
           cd ios
           mkdir -p Payload
-          # Tự động quét tìm file .app bất kể tên là gì để sao chép vào Payload
+          # Quét tìm file .app vừa compile xong để ném vào Payload
           find build/Build/Products/Debug-iphoneos -name "*.app" -maxdepth 1 -exec cp -R {} Payload/ \;
           # Nén thành file .ipa vĩnh viễn
           zip -r ../LgRemoteController.ipa Payload
