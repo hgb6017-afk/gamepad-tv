@@ -1,5 +1,5 @@
 workflows:
-  react-native-ios: # <--- MÌNH ĐÃ SỬA LẠI ĐÚNG TÊN ID NÀY RỒI
+  react-native-ios:
     name: Build iOS IPA (TrollStore)
     max_build_duration: 60
     instance_type: mac_mini_m2
@@ -68,7 +68,7 @@ workflows:
           cat > patch_pbxproj.rb << 'EOF'
           require 'xcodeproj'
           project_path = 'ios/LgRemoteController.xcodeproj'
-          next unless File.exist?(project_path)
+          exit unless File.exist?(project_path) # <--- CHÍNH XÁC LÀ CHỮ EXIT Ở ĐÂY
           project = Xcodeproj::Project.open(project_path)
           project.build_configurations.each do |config|
             config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
