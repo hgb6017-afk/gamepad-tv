@@ -11,6 +11,24 @@
       "env": {
         "NO_FLIPPER": "1"
       }
+    },
+    "preview": {
+      "ios": {
+        "simulator": true
+      },
+      "node": "20.19.4",
+      "env": {
+        "NO_FLIPPER": "1"
+      }
+    },
+    "production": {
+      "ios": {
+        "simulator": true
+      },
+      "node": "20.19.4",
+      "env": {
+        "NO_FLIPPER": "1"
+      }
     }
   }
 }
